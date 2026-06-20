@@ -1,6 +1,6 @@
 [project]
 name = "rag-packages"
-version = "0.1.0"
+version = "0.1.1"
 description = "Shared packages for the RAG backend"
 readme = "README.md"
 requires-python = ">=3.13"
