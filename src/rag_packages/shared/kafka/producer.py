@@ -1,7 +1,9 @@
 import json
+import logging
 from typing import Any
-from shared.logging.logger import logger
 from aiokafka import AIOKafkaProducer
+
+logger = logging.getLogger(__name__)
 
 
 class KafkaProducer:
@@ -26,6 +28,10 @@ class KafkaProducer:
     @property
     def producer(self) -> AIOKafkaProducer:
         return self._producer
+    
+    @property
+    def started(self) -> bool:
+        return self._started
 
     async def start(self) -> AIOKafkaProducer:
         await self._producer.start()

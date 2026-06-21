@@ -1,20 +1,9 @@
 import asyncio
 import logging
 from aiokafka import ConsumerRebalanceListener
+# from shared.kafka.utils import clear_partition_queue
 
 logger = logging.getLogger(__name__)
-
-
-def clear_partition_queue(queue: asyncio.Queue = None):
-    if queue is None:
-        return
-
-    while not queue.empty():
-        try:
-            queue.get_nowait()
-            queue.task_done()
-        except asyncio.QueueEmpty:
-            break
 
 
 # ! Update the RebalanceListener when enable_auto_commit=False
@@ -22,10 +11,15 @@ def clear_partition_queue(queue: asyncio.Queue = None):
 #   Drain before revoke
 #   Commit processed offsets
 #   Then stop
-
-
 class RebalanceListener(ConsumerRebalanceListener):
-    def __init__(self, consumer, partition_queues, partition_tasks, paused_partitions, partition_worker):
+    def __init__(
+        self,
+        consumer,
+        partition_queues,
+        partition_tasks,
+        paused_partitions,
+        partition_worker,
+    ):
         self.consumer = consumer
         self.partition_queues = partition_queues
         self.partition_tasks = partition_tasks
