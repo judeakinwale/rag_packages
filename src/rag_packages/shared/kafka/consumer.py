@@ -48,6 +48,7 @@ class KafkaConsumer:
             self._consumer,
             self.partition_queues,
             self.partition_tasks,
+            paused_partitions=self.paused_partitions,
             partition_worker=self.partition_worker,
         )
         self._dlq_producer = dlq_producer
