@@ -73,7 +73,7 @@ class KafkaConsumer:
             await self._consumer.start()
             self._started = True
 
-            # await self.consume()
+            # await self.consume() # using this will block the start method
             self._consume_task = asyncio.create_task(self.consume())
 
             return self._consumer
