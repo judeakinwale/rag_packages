@@ -69,9 +69,8 @@ class KafkaConsumer:
             return self._consumer
 
         try:
-            await self._consumer.start()
-
             self._consumer.subscribe(topics=self._topics, listener=self._listener)
+            await self._consumer.start()
             self._started = True
 
             # await self.consume()
@@ -126,6 +125,12 @@ class KafkaConsumer:
 
         try:
             async for msg in self._consumer:
+                # # ? using aiokafka defaults
+                # handler = self._handlers.get(msg.topic)
+                # if handler:
+                #     await handler(msg.value)
+
+                # ? using custom partitions and backpressure
                 topic_partition = TopicPartition(msg.topic, msg.partition)
                 queue = self.partition_queues[topic_partition]
 

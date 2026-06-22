@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from aiokafka import ConsumerRebalanceListener
+from aiokafka import ConsumerRebalanceListener, TopicPartition
 # from rag_packages.shared.kafka.utils import clear_partition_queue
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,9 @@ class RebalanceListener(ConsumerRebalanceListener):
         self.paused_partitions = paused_partitions
         self.partition_worker = partition_worker
 
+        # self.current_assignment: set[TopicPartition] = set()
+        # self.assignment_ready = asyncio.Event()
+
     async def on_partitions_revoked(self, revoked):
         logger.info(f"[rebalance] revoked: {revoked}")
 
@@ -33,6 +36,8 @@ class RebalanceListener(ConsumerRebalanceListener):
 
         # Stop workers for revoked partitions
         for tp in revoked:
+            # self.current_assignment.difference_update(revoked)
+
             task = self.partition_tasks.pop(tp, None)
             if task:
                 task.cancel()
@@ -58,11 +63,20 @@ class RebalanceListener(ConsumerRebalanceListener):
     async def on_partitions_assigned(self, assigned):
         logger.info(f"[rebalance] assigned: {assigned}")
 
+        # self.current_assignment = set(assigned)
+
+        # if assigned:
+        #     self.assignment_ready.set()
+
+        # await self.assignment_ready.wait()
+
+        # for tp in self.current_assignment:
         for tp in assigned:
             # Create queue if missing
             if tp not in self.partition_queues:
                 self.partition_queues[tp] = asyncio.Queue(maxsize=10000)
 
+            # ? this may be moved to KafkaConsumer.start() to avoid starting workers for partitions that are not assigned to this consumer
             # Start worker if missing
             if tp not in self.partition_tasks:
                 self.partition_tasks[tp] = asyncio.create_task(
