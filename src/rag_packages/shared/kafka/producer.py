@@ -19,6 +19,7 @@ class KafkaProducer:
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             retry_backoff_ms=500,
             request_timeout_ms=1000,
+            client_id=service_name,
             acks="all",
             **valid_overrides,
         )
@@ -28,17 +29,25 @@ class KafkaProducer:
     @property
     def producer(self) -> AIOKafkaProducer:
         return self._producer
-    
+
     @property
     def started(self) -> bool:
         return self._started
 
     async def start(self) -> AIOKafkaProducer:
+        if self._started:
+            logger.warning(f"[{self.service_name}] Producer already started")
+            return self._producer
+
         await self._producer.start()
         self._started = True
         return self._producer
 
     async def stop(self):
+        if not self._started:
+            logger.warning(f"[{self.service_name}] Producer is not started")
+            return
+
         await self._producer.stop()
         self._started = False
 

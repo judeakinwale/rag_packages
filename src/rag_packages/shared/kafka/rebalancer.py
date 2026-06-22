@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from aiokafka import ConsumerRebalanceListener
-# from shared.kafka.utils import clear_partition_queue
+# from rag_packages.shared.kafka.utils import clear_partition_queue
 
 logger = logging.getLogger(__name__)
 

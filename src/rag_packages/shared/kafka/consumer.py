@@ -5,8 +5,8 @@ import json
 import logging
 from collections import defaultdict
 from aiokafka import AIOKafkaConsumer, ConsumerRecord, TopicPartition
-from shared.kafka.rebalancer import RebalanceListener
-from shared.kafka.producer import KafkaProducer
+from rag_packages.shared.kafka.rebalancer import RebalanceListener
+from rag_packages.shared.kafka.producer import KafkaProducer
 
 logger = logging.getLogger(__name__)
 
@@ -51,12 +51,17 @@ class KafkaConsumer:
             partition_worker=self.partition_worker,
         )
         self._dlq_producer = dlq_producer
+        self._consume_task: asyncio.Task | None = None
         self._started = False
         self.service_name = service_name
 
     @property
     def consumer(self) -> AIOKafkaConsumer:
         return self._consumer
+
+    @property
+    def started(self) -> bool:
+        return self._started
 
     async def start(self):
         if self._started:
@@ -69,7 +74,7 @@ class KafkaConsumer:
             self._started = True
 
             # await self.consume()
-            asyncio.create_task(self.consume())
+            self._consume_task = asyncio.create_task(self.consume())
 
             return self._consumer
 
@@ -98,10 +103,16 @@ class KafkaConsumer:
                 task.cancel()
 
             await asyncio.gather(*self.partition_tasks.values(), return_exceptions=True)
+
+            if self._consume_task:
+                self._consume_task.cancel()
+                # wait for task to finish, don't raise exception if cancelled or has other exception, return exception(s) as list instead
+                await asyncio.gather(self._consume_task, return_exceptions=True)
+
             await self._consumer.stop()
 
         except Exception:
-            logging.exception(f"[{self.service_name}] shutdown error")
+            logger.exception(f"[{self.service_name}] shutdown error")
             raise
 
         finally:
