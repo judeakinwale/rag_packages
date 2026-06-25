@@ -16,7 +16,9 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def verify_and_rehash_password(password: str, password_hash: str) -> tuple[bool, str | None]:
+def verify_and_rehash_password(
+    password: str, password_hash: str
+) -> tuple[bool, str | None]:
     try:
         password_is_valid = password_hasher.verify(password_hash, password)
     except (VerifyMismatchError, InvalidHashError, VerificationError):
