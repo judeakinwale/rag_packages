@@ -10,3 +10,13 @@ class BaseEvent(BaseModel):
         kwargs.setdefault("exclude_unset", True)
         kwargs.setdefault("exclude_none", True)
         return super().model_dump(**kwargs)
+
+
+class DLQEvent(BaseEvent):
+    original_topic: str
+    partition: int
+    offset: int
+    timestamp: int
+    key: Any | None = None
+    payload: Any | BaseEvent
+    error: str | None = None

@@ -3,10 +3,14 @@ from collections.abc import Callable, Awaitable
 from typing import Any
 import json
 import logging
+import inspect
 from collections import defaultdict
+from pydantic import ValidationError
 from aiokafka import AIOKafkaConsumer, ConsumerRecord, TopicPartition
+from rag_packages.contracts.events.shared_events import BaseEvent
 from rag_packages.shared.kafka.rebalancer import RebalanceListener
 from rag_packages.shared.kafka.producer import KafkaProducer
+from rag_packages.contracts.events.shared_events import DLQEvent
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +23,8 @@ class KafkaConsumer:
     def __init__(
         self,
         topics: list[str],
-        handlers: dict[str, Callable[[dict], Awaitable[None]]],
+        handlers: dict[str, Callable[[dict], Awaitable[None] | None]],
+        event_models: dict[str, BaseEvent],
         dlq_producer: KafkaProducer,
         bootstrap_servers: str = "kafka:9092",
         service_name: str | None = None,
@@ -28,6 +33,7 @@ class KafkaConsumer:
         valid_overrides = overrides or {}
         self._topics = topics
         self._handlers = handlers
+        self._event_models = event_models
 
         self.partition_queues: dict[TopicPartition, asyncio.Queue[ConsumerRecord]] = (
             defaultdict(lambda: asyncio.Queue(maxsize=QUEUE_MAXSIZE))
@@ -156,27 +162,24 @@ class KafkaConsumer:
     async def send_to_dlq(
         self, producer: KafkaProducer, msg: ConsumerRecord, error: str
     ):
-        # if producer is None:
-        #     raise ValueError(
-        #         f"[{self.service_name}] unable to send message to dlq: no dlq producer provided"
-        #     )
+        # TODO: ensure .dlq events are sent to .parking-lot topic to prevent .dlq.dlq... topics
 
         dlq_topic = f"{msg.topic}.dlq"
-        payload = {
-            "original_topic": msg.topic,
-            "partition": msg.partition,
-            "offset": msg.offset,
-            "timestamp": msg.timestamp,
-            "key": msg.key.decode() if msg.key else None,
-            "payload": msg.value,
-            "error": str(error),
-        }
+        payload = DLQEvent(
+            original_topic=msg.topic,
+            partition=msg.partition,
+            offset=msg.offset,
+            timestamp=msg.timestamp,
+            key=msg.key.decode() if msg.key else None,
+            payload=msg.value,
+            error=str(error),
+        )
 
         try:
             if not producer.started:
                 await producer.start()
 
-            await producer.publish(dlq_topic, payload)
+            await producer.publish(dlq_topic, payload.model_dump())
         except Exception as e:
             logger.exception(
                 f"[{self.service_name}] failed to send message to DLQ {dlq_topic}: {e}"
@@ -190,10 +193,18 @@ class KafkaConsumer:
                 logger.info(
                     f"[{self.service_name}] processing message from partition {msg.partition}: {msg.value} on topic: {msg.topic}"
                 )
+
+                event_model = self._event_models.get(msg.topic, None)
+                event = (
+                    event_model.model_validate(msg.value) if event_model else msg.value
+                )
+
                 handler = self._handlers.get(msg.topic)
-                print(f"In handle message fn; msg: {msg}, handler: {handler}")
                 if handler:
-                    await handler(msg.value)
+                    result = handler(event)
+                    if inspect.isawaitable(result):
+                        await result
+                    return
                 else:
                     logger.warning(
                         f"[{self.service_name}] no handler found for topic: {msg.topic}"
@@ -203,6 +214,13 @@ class KafkaConsumer:
 
             except ValueError:
                 raise
+
+            except ValidationError as e:
+                logger.error(
+                    f"[{self.service_name}] invalid event payload for {msg.topic}: {e}"
+                )
+                await self.send_to_dlq(self._dlq_producer, msg, e)
+                return
 
             except Exception as e:
                 if attempt >= retry_count - 1:
