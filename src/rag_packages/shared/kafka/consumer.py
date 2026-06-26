@@ -191,6 +191,7 @@ class KafkaConsumer:
                     f"[{self.service_name}] processing message from partition {msg.partition}: {msg.value} on topic: {msg.topic}"
                 )
                 handler = self._handlers.get(msg.topic)
+                print(f"In handle message fn; msg: {msg}, handler: {handler}")
                 if handler:
                     await handler(msg.value)
                 else:
