@@ -1,18 +1,20 @@
 import asyncio
 from collections.abc import Callable, Awaitable
-from typing import Any
+from typing import Any, TypeVar
 import json
 import logging
 import inspect
 from collections import defaultdict
 from pydantic import ValidationError
 from aiokafka import AIOKafkaConsumer, ConsumerRecord, TopicPartition
-from rag_packages.contracts.events.shared_events import BaseEvent
+from rag_packages.contracts.events.shared_events import BaseEvent, DLQEvent
 from rag_packages.shared.kafka.rebalancer import RebalanceListener
 from rag_packages.shared.kafka.producer import KafkaProducer
-from rag_packages.contracts.events.shared_events import DLQEvent
+
 
 logger = logging.getLogger(__name__)
+
+E = TypeVar("E", bound=BaseEvent)
 
 HIGH_WATERMARK = 9990
 LOW_WATERMARK = 9000
@@ -322,3 +324,39 @@ class KafkaConsumer:
                 queue.task_done()
             except asyncio.QueueEmpty:
                 break
+
+    @staticmethod
+    def clear_external_queue(
+        queue: asyncio.Queue[ConsumerRecord] | None = None,
+    ) -> None:
+        if queue is None:
+            return
+
+        while not queue.empty():
+            try:
+                queue.get_nowait()
+                queue.task_done()
+            except asyncio.QueueEmpty:
+                break
+
+    @staticmethod
+    def validate_dlq_original_event(
+        event: DLQEvent,
+        events_dict: dict[str, E],
+        service_name: str | None = None,
+    ) -> tuple[E, bool]:
+        original_event_model = events_dict.get(event.original_topic)
+        original_event = event.payload
+
+        try:
+            if not original_event_model:
+                return original_event, False
+
+            valid_event = original_event_model.model_validate(original_event)
+            return valid_event, True
+
+        except Exception as e:
+            logger.error(
+                f"[{service_name}] Failed to validate event: {event}. Error: {e}"
+            )
+            return original_event, False
