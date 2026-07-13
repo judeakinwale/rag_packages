@@ -1,9 +1,10 @@
-from typing import Any, Literal, TypeVar
+from typing import Any, TypeVar
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from rag_packages.shared.database.base import Base
 from rag_packages.contracts.dto.shared_dto import BaseDTO
+from rag_packages.contracts.types.shared_types import SortDirection
 
 
 ModelType = TypeVar("ModelType", bound=Base)
@@ -14,7 +15,7 @@ class QueryParams(BaseDTO):
     ids: list[int] | None = None
     query: str | None = None
     sort_by: str | None = None
-    sort_direction: Literal["asc", "desc"] = "asc"
+    sort_direction: SortDirection = SortDirection.ASC
     limit: int | None = None
     offset: int | None = None
 
@@ -28,7 +29,7 @@ async def get_model_page(
     query: str | None = None,
     search_fields: list[str] | None = None,
     sort_by: str | None = None,
-    sort_direction: Literal["asc", "desc"] = "asc",
+    sort_direction: SortDirection = SortDirection.ASC,
     limit: int | None = None,
     offset: int | None = None,
 ) -> tuple[list[ModelType], int]:

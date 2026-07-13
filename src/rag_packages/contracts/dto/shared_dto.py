@@ -11,6 +11,11 @@ class BaseDTO(BaseModel):
         kwargs.setdefault("exclude_none", True)
         return super().model_dump(**kwargs)
 
+    def model_dump_json(self, **kwargs: Any) -> dict[str, Any]:
+        kwargs.setdefault("exclude_unset", True)
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump_json(**kwargs)
+
 
 class APIResponse(BaseDTO):
     success: bool
