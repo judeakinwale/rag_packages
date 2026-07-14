@@ -1,11 +1,19 @@
-import os
-import base64
-from typing import Any, Iterable, Mapping
+from collections.abc import Sequence
+from typing import Any, Literal, Mapping, TypeAlias, overload
 from enum import StrEnum
 import openai
-from openai import OpenAI, AsyncOpenAI, APIConnectionError, APIError, APIResponse
-from openai.types.responses import ResponseInputParam, ResponseInputItemParam
-from openai.types.chat import ChatCompletionMessageParam
+from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
+from openai.types.chat.chat_completion_content_part_image_param import (
+    ChatCompletionContentPartImageParam,
+)
+from openai.types.chat.chat_completion_content_part_text_param import (
+    ChatCompletionContentPartTextParam,
+)
+from openai.types.responses import Response, ResponseInputParam
+from openai.types.responses.easy_input_message_param import EasyInputMessageParam
+from openai.types.responses.response_input_image_param import ResponseInputImageParam
+from openai.types.responses.response_input_text_param import ResponseInputTextParam
 from openai.types.realtime import ConversationItem, ConversationItemParam
 
 # from openai.auth import gcp_id_token_provider
@@ -35,6 +43,7 @@ class ActorRoles(StrEnum):
     SYSTEM = "system"
     DEVELOPER = "developer"
     USER = "user"
+    ASSISTANT = "assistant"
 
 
 class ResponseMethod(StrEnum):
@@ -42,17 +51,24 @@ class ResponseMethod(StrEnum):
     CHAT_COMPLETION = "chat_completion"
 
 
+ConversationMessage: TypeAlias = EasyInputMessageParam | ChatCompletionMessageParam
+ConversationMessages: TypeAlias = Sequence[ConversationMessage]
+ResponseContentPart: TypeAlias = ResponseInputTextParam | ResponseInputImageParam
+ChatContentPart: TypeAlias = (
+    ChatCompletionContentPartTextParam | ChatCompletionContentPartImageParam
+)
+OpenAIResponse: TypeAlias = Response | ChatCompletion
+
+
 class OpenAIService:
     default_system_prompt = "You are a coding assistant that talks like a pirate."
-    #
-    default_developer_instructions = (
-        "You are a coding assistant that talks like a pirate."
-    )
+    default_model = "gpt-5.5"
+    default_realtime_model = "gpt-realtime-2"
 
     def __init__(
         self,
         api_key: str,
-        config: Mapping[str, Any] | None = None, # or change this to **client_kwargs
+        config: Mapping[str, Any] | None = None,  # or change this to **client_kwargs
         system_prompt: str | None = None,
         webhook_secret: str | None = None,
     ):
@@ -60,8 +76,8 @@ class OpenAIService:
         self.config = config or {}
         self.system_prompt = system_prompt or self.default_system_prompt
 
-        self.model = ("gpt-5.5",)
-        self.realtime_model = "gpt-realtime-2"
+        self.model = self.default_model
+        self.realtime_model = self.default_realtime_model
 
         # default timeout is 10 minutes
         self.client = AsyncOpenAI(
@@ -73,20 +89,167 @@ class OpenAIService:
         )
         # self.sync_client = OpenAI(api_key=self.api_key, **self.config)
 
+    def _build_response_content(
+        self,
+        prompt: str,
+        file_url: str | None,
+        b64_file: str | None,
+        b64_file_mime_type: str | None = None,
+    ) -> list[ResponseContentPart]:
+        content: list[ResponseContentPart] = [{"type": "input_text", "text": prompt}]
+
+        if file_url:
+            content.append(
+                {
+                    "type": "input_image",
+                    "image_url": file_url,
+                    "detail": "auto",
+                }
+            )
+
+        if b64_file:
+            mime_type = b64_file_mime_type or "image/png"
+            content.append(
+                {
+                    "type": "input_image",
+                    "image_url": f"data:{mime_type};base64,{b64_file}",
+                    "detail": "auto",
+                }
+            )
+
+        return content
+
+    def _build_chat_content(
+        self,
+        prompt: str,
+        file_url: str | None,
+        b64_file: str | None,
+        b64_file_mime_type: str | None = None,
+    ) -> str | list[ChatContentPart]:
+        if not file_url and not b64_file:
+            return prompt
+
+        content: list[ChatContentPart] = [{"type": "text", "text": prompt}]
+
+        mime_type = b64_file_mime_type or "image/png"
+
+        image_url = file_url or f"data:{mime_type};base64,{b64_file}"
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": image_url, "detail": "auto"},
+            }
+        )
+        return content
+
+    def _filter_prev_conversation(
+        self,
+        prev_conversation: ConversationMessages | None,
+    ) -> list[ConversationMessage]:
+        if not prev_conversation:
+            return []
+
+        return [
+            item
+            for item in prev_conversation
+            if item is not None
+            and item.get("role") != ActorRoles.SYSTEM
+            and item.get("role") != ActorRoles.DEVELOPER
+        ]
+
+    def _build_response_messages(
+        self,
+        prompt: str,
+        prev_conversation: ResponseInputParam | None,
+        instructions: str | None,
+        file_url: str | None,
+        b64_file: str | None,
+        b64_file_mime_type: str | None = None,
+    ) -> ResponseInputParam:
+        messages: list[EasyInputMessageParam] = [
+            {"role": ActorRoles.SYSTEM, "content": self.system_prompt},
+        ]
+
+        if instructions:
+            messages.append({"role": ActorRoles.DEVELOPER, "content": instructions})
+
+        messages.extend(self._filter_prev_conversation(prev_conversation))
+
+        messages.append(
+            {
+                "role": ActorRoles.USER,
+                "content": self._build_response_content(
+                    prompt, file_url, b64_file, b64_file_mime_type
+                ),
+            }
+        )
+        return messages
+
+    def _build_chat_messages(
+        self,
+        prompt: str,
+        prev_conversation: Sequence[ChatCompletionMessageParam] | None,
+        instructions: str | None,
+        file_url: str | None,
+        b64_file: str | None,
+        b64_file_mime_type: str | None = None,
+    ) -> list[ChatCompletionMessageParam]:
+        messages: list[ChatCompletionMessageParam] = [
+            {"role": ActorRoles.SYSTEM, "content": self.system_prompt},
+        ]
+
+        if instructions:
+            messages.append({"role": ActorRoles.DEVELOPER, "content": instructions})
+
+        messages.extend(self._filter_prev_conversation(prev_conversation))
+
+        messages.append(
+            {
+                "role": ActorRoles.USER,
+                "content": self._build_chat_content(
+                    prompt, file_url, b64_file, b64_file_mime_type
+                ),
+            }
+        )
+        return messages
+
+    @overload
     async def create_response(
         self,
         prompt: str = "",
-        conversation: Iterable[ChatCompletionMessageParam]
-        | ResponseInputParam
-        | None = None,
-        prev_conversation: Iterable[ChatCompletionMessageParam]
-        | ResponseInputParam
-        | None = None,
+        conversation: ResponseInputParam | None = None,
+        prev_conversation: ResponseInputParam | None = None,
         instructions: str | None = None,
         file_url: str | None = None,
         b64_file: str | None = None,
+        response_method: Literal[ResponseMethod.RESPONSE] = ResponseMethod.RESPONSE,
+    ) -> Response: ...
+
+    @overload
+    async def create_response(
+        self,
+        prompt: str = "",
+        conversation: Sequence[ChatCompletionMessageParam] | None = None,
+        prev_conversation: Sequence[ChatCompletionMessageParam] | None = None,
+        instructions: str | None = None,
+        file_url: str | None = None,
+        b64_file: str | None = None,
+        response_method: Literal[
+            ResponseMethod.CHAT_COMPLETION
+        ] = ResponseMethod.CHAT_COMPLETION,
+    ) -> ChatCompletion: ...
+
+    async def create_response(
+        self,
+        prompt: str = "",
+        conversation: ConversationMessages | None = None,
+        prev_conversation: ConversationMessages | None = None,
+        instructions: str | None = None,
+        file_url: str | None = None,
+        b64_file: str | None = None,
+        b64_file_mime_type: str | None = None,
         response_method: ResponseMethod = ResponseMethod.RESPONSE,
-    ):
+    ) -> OpenAIResponse:
 
         if not prompt and not conversation:
             raise ValueError("Either a prompt or existing conversation is required!")
@@ -94,86 +257,42 @@ class OpenAIService:
         if file_url and b64_file:
             raise ValueError("Provide either file_url or b64_file, not both.")
 
-        prompt = prompt or ""
-        instructions = instructions or self.default_developer_instructions
-
-        # ? remove previous system prompts and invalid prompts
-        valid_prev_conversation = (
-            [
-                con
-                for con in prev_conversation
-                if con is not None and con["role"] != ActorRoles.SYSTEM
-            ]
-            if prev_conversation
-            else []
-        )
-
-        content = [
-            {"type": "input_text", "text": prompt},
-        ]
-
-        if file_url:
-            content.append(
-                {
-                    "type": "input_image",
-                    "image_url": file_url,
-                }
-            )
-
-        # TODO: update this to use the file type if available, or default to png
-        if b64_file:
-            content.append(
-                {
-                    "type": "input_image",
-                    "image_url": f"data:image/png;base64,{b64_file}",
-                }
-            )
-
-        conversation = conversation or [
-            {"role": ActorRoles.SYSTEM, "content": self.system_prompt},
-            {"role": ActorRoles.DEVELOPER, "content": instructions}
-            if instructions
-            else None,
-            *valid_prev_conversation,
-            {
-                "role": ActorRoles.USER,
-                "content": content,
-            },
-        ]
-        valid_conversation = [item for item in conversation if item is not None]
-
         match response_method:
             case ResponseMethod.RESPONSE:
-                response_input = ResponseInputParam(
-                    items=[
-                        ResponseInputItemParam(
-                            role=item["role"],
-                            content=item["content"],
-                        )
-                        for item in valid_conversation
-                    ]
+                response_input = (
+                    list(conversation)
+                    if conversation is not None
+                    else self._build_response_messages(
+                        prompt=prompt,
+                        prev_conversation=prev_conversation,
+                        instructions=instructions,
+                        file_url=file_url,
+                        b64_file=b64_file,
+                        b64_file_mime_type=b64_file_mime_type,
+                    )
                 )
                 response = await self.client.responses.create(
                     model=self.model,
                     input=response_input,
-                    # _________________________
-                    # ? For simple examples
-                    # instructions=instructions,
-                    # input=prompt,
                 )
                 print(response.output_text)
 
             case ResponseMethod.CHAT_COMPLETION:
-                completion_messages = [
-                    ChatCompletionMessageParam(
-                        role=item["role"],
-                        content=item["content"],
+                chat_messages = (
+                    list(conversation)
+                    if conversation is not None
+                    else self._build_chat_messages(
+                        prompt=prompt,
+                        prev_conversation=prev_conversation,
+                        instructions=instructions,
+                        file_url=file_url,
+                        b64_file=b64_file,
+                        b64_file_mime_type=b64_file_mime_type,
                     )
-                    for item in valid_conversation
-                ]
+                )
                 response = await self.client.chat.completions.create(
                     model=self.model,
-                    messages=completion_messages,
+                    messages=chat_messages,
                 )
 
                 print(response.choices[0].message.content)
