@@ -6,8 +6,18 @@ from threading import Lock
 from enum import StrEnum
 from fastembed import TextEmbedding
 from qdrant_client import AsyncQdrantClient, models
+from qdrant_client.conversions import common_types as types
+from qdrant_client.http import models as rest_models
 from rag_packages.contracts.dto.shared_dto import BaseDTO
 from rag_packages.contracts.dto.vector_document import CreateVectorDocumentRequest
+
+# for use in packages importing this module
+from qdrant_client.conversions.common_types import ScoredPoint
+
+
+# # * equivalent types
+# types.QueryResponse
+# rest_models.QueryResponse
 
 
 class CollectionPayload(BaseDTO):
@@ -109,7 +119,7 @@ class QdrantService:
         # NOTE: if unstable under heavy concurrency, protect embedding calls with an asyncio.Lock or use a small worker pool.
         embeddings = await asyncio.to_thread(
             lambda: [
-                embedding.toList() for embedding in self.embedding_model.embed(texts)
+                embedding.tolist() for embedding in self.embedding_model.embed(texts)
             ]
         )
         if not embeddings:
@@ -146,7 +156,7 @@ class QdrantService:
         self,
         points: list[models.PointStruct],
         method: UploadMethod = UploadMethod.UPSERT,
-    ) -> models.UpdateResult | None:
+    ) -> types.UpdateResult | None:
         client = self.get_client()
 
         async with self._semaphore:
@@ -170,7 +180,7 @@ class QdrantService:
 
     async def add_chunks_to_collection(
         self, chunks: list[CreateVectorDocumentRequest]
-    ) -> list[models.UpdateResult]:
+    ) -> list[types.UpdateResult]:
         initiated_at = datetime.now(tz=UTC)
 
         valid_chunks: list[CreateVectorDocumentRequest] = []
@@ -222,10 +232,22 @@ class QdrantService:
 
     async def get_matching_vectors(
         self,
-        query_vector: list[float] | None = None,
+        query_vector: list[float] | list[list[float]] | None = None,
         limit: int = 5,
         filters: dict[str, Any] | None = None,
-    ) -> models.QueryResponse:
+    ) -> rest_models.QueryResponse:
+        """
+        Search for matching vectors in the collection based on the provided query vector and optional filters.
+
+        Args:
+            query_vector (list[float] | list[list[float]] | None): The query vector(s) to search for. If None, only filters will be applied.
+            limit (int): The maximum number of results to return. Default is 5.
+            filters (dict[str, Any] | None): Optional filters to apply to the search.
+
+        Returns:
+            rest_models.QueryResponse: The response containing the matching vectors and their metadata.
+        """
+
         client = self.get_client()
 
         if query_vector is None and filters is None:
@@ -258,9 +280,39 @@ class QdrantService:
         )
         return hits
 
+    async def search(
+        self,
+        query: str | list[str] | None = None,
+        limit: int = 5,
+        filters: dict[str, Any] | None = None,
+    ) -> list[types.ScoredPoint]:
+
+        if query is None and filters is None:
+            raise ValueError(
+                f"[{self.service_name}] query or filters is required for vector search."
+            )
+
+        is_list = isinstance(query, list)
+        query_vector: list[float] | list[list[float]] | None = None
+
+        if query is not None and not is_list:
+            query = [query]
+
+        query_vector = await self.generate_vector_embeddings(query)
+        if query_vector is not None:
+            query_vector = query_vector if is_list else query_vector[0]
+
+        hits: rest_models.QueryResponse = await self.get_matching_vectors(
+            query_vector=query_vector,
+            limit=limit,
+            filters=filters,
+        )
+        points = hits.points
+        return points
+
     async def remove_vectors_by_filter(
         self, filters: dict[str, Any]
-    ) -> models.UpdateResult:
+    ) -> types.UpdateResult:
         client = self.get_client()
 
         conditions = [
@@ -275,7 +327,7 @@ class QdrantService:
         )
         return result
 
-    async def remove_points_by_ids(self, point_ids: list[str]) -> models.UpdateResult:
+    async def remove_points_by_ids(self, point_ids: list[str]) -> types.UpdateResult:
         client = self.get_client()
         result = await client.delete(
             collection_name=self.collection_name,
