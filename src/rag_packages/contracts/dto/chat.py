@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any
+from pydantic import Field
 from rag_packages.contracts.dto.shared_dto import BaseDTO, APIResponse, APIListResponse
 
 
@@ -23,7 +24,7 @@ class AddPromptRequest(BaseDTO):
 
 class CreateChatRequest(BaseDTO):
     email: str
-    messages: list[ChatMessage]
+    messages: list[ChatMessage] = Field(default_factory=list)
     session_id: str | None = None
     site_url: str | None = None
 
@@ -31,9 +32,9 @@ class CreateChatRequest(BaseDTO):
 class UpdateChatRequest(BaseDTO):
     email: str | None = None
     # messages to replace the existing messages
-    messages: list[ChatMessage] | None = None
+    messages: list[ChatMessage] = Field(default_factory=list)
     # new messages to be appended to the existing messages
-    new_messages: list[ChatMessage] | None = None
+    new_messages: list[ChatMessage] = Field(default_factory=list)
     session_id: str | None = None
     site_url: str | None = None
 

@@ -25,6 +25,10 @@ class CreateVectorDocumentRequest(BaseDTO):
     initiated_at: datetime | None = None
 
 
+class VectorDocumentPayload(CreateVectorDocumentRequest):
+    pass
+
+
 class UpdateVectorDocumentRequest(BaseDTO):
     doc_id: int
     chunk_id: int | None = None

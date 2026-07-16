@@ -2,15 +2,19 @@ from collections.abc import Sequence
 from typing import Any, Literal, Mapping, TypeAlias, overload
 from enum import StrEnum
 import openai
-from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
+from openai import AsyncOpenAI, AsyncStream
+from openai.types.chat import (
+    ChatCompletion,
+    ChatCompletionMessageParam,
+    ChatCompletionChunk,
+)
 from openai.types.chat.chat_completion_content_part_image_param import (
     ChatCompletionContentPartImageParam,
 )
 from openai.types.chat.chat_completion_content_part_text_param import (
     ChatCompletionContentPartTextParam,
 )
-from openai.types.responses import Response, ResponseInputParam
+from openai.types.responses import Response, ResponseInputParam, ResponseStreamEvent
 from openai.types.responses.easy_input_message_param import EasyInputMessageParam
 from openai.types.responses.response_input_image_param import ResponseInputImageParam
 from openai.types.responses.response_input_text_param import ResponseInputTextParam
@@ -39,7 +43,7 @@ from openai.types.realtime import ConversationItem, ConversationItemParam
 # Default variable names: OPENAI_API_KEY, OPENAI_WEBHOOK_SECRET can be omitted when creating the openai client
 
 
-class ActorRoles(StrEnum):
+class ActorRole(StrEnum):
     SYSTEM = "system"
     DEVELOPER = "developer"
     USER = "user"
@@ -58,6 +62,9 @@ ChatContentPart: TypeAlias = (
     ChatCompletionContentPartTextParam | ChatCompletionContentPartImageParam
 )
 OpenAIResponse: TypeAlias = Response | ChatCompletion
+OpenAIStreamResponse: TypeAlias = (
+    AsyncStream[ResponseStreamEvent] | AsyncStream[ChatCompletionChunk]
+)
 
 
 class OpenAIService:
@@ -153,10 +160,11 @@ class OpenAIService:
             item
             for item in prev_conversation
             if item is not None
-            and item.get("role") != ActorRoles.SYSTEM
-            and item.get("role") != ActorRoles.DEVELOPER
+            and item.get("role") != ActorRole.SYSTEM
+            and item.get("role") != ActorRole.DEVELOPER
         ]
 
+    # TODO: update this to properly handle conversation messages as lists without a prompt provided separately
     def _build_response_messages(
         self,
         prompt: str,
@@ -167,17 +175,17 @@ class OpenAIService:
         b64_file_mime_type: str | None = None,
     ) -> ResponseInputParam:
         messages: list[EasyInputMessageParam] = [
-            {"role": ActorRoles.SYSTEM, "content": self.system_prompt},
+            {"role": ActorRole.SYSTEM, "content": self.system_prompt},
         ]
 
         if instructions:
-            messages.append({"role": ActorRoles.DEVELOPER, "content": instructions})
+            messages.append({"role": ActorRole.DEVELOPER, "content": instructions})
 
         messages.extend(self._filter_prev_conversation(prev_conversation))
 
         messages.append(
             {
-                "role": ActorRoles.USER,
+                "role": ActorRole.USER,
                 "content": self._build_response_content(
                     prompt, file_url, b64_file, b64_file_mime_type
                 ),
@@ -185,6 +193,7 @@ class OpenAIService:
         )
         return messages
 
+    # TODO: cascade conversation message list change from _build_chat_messages here
     def _build_chat_messages(
         self,
         prompt: str,
@@ -195,17 +204,17 @@ class OpenAIService:
         b64_file_mime_type: str | None = None,
     ) -> list[ChatCompletionMessageParam]:
         messages: list[ChatCompletionMessageParam] = [
-            {"role": ActorRoles.SYSTEM, "content": self.system_prompt},
+            {"role": ActorRole.SYSTEM, "content": self.system_prompt},
         ]
 
         if instructions:
-            messages.append({"role": ActorRoles.DEVELOPER, "content": instructions})
+            messages.append({"role": ActorRole.DEVELOPER, "content": instructions})
 
         messages.extend(self._filter_prev_conversation(prev_conversation))
 
         messages.append(
             {
-                "role": ActorRoles.USER,
+                "role": ActorRole.USER,
                 "content": self._build_chat_content(
                     prompt, file_url, b64_file, b64_file_mime_type
                 ),
@@ -222,6 +231,8 @@ class OpenAIService:
         instructions: str | None = None,
         file_url: str | None = None,
         b64_file: str | None = None,
+        b64_file_mime_type: str | None = None,
+        stream: Literal[False] = False,
         response_method: Literal[ResponseMethod.RESPONSE] = ResponseMethod.RESPONSE,
     ) -> Response: ...
 
@@ -234,11 +245,44 @@ class OpenAIService:
         instructions: str | None = None,
         file_url: str | None = None,
         b64_file: str | None = None,
+        b64_file_mime_type: str | None = None,
+        stream: Literal[False] = False,
         response_method: Literal[
             ResponseMethod.CHAT_COMPLETION
         ] = ResponseMethod.CHAT_COMPLETION,
     ) -> ChatCompletion: ...
 
+    @overload
+    async def create_response(
+        self,
+        prompt: str = "",
+        conversation: ResponseInputParam | None = None,
+        prev_conversation: ResponseInputParam | None = None,
+        instructions: str | None = None,
+        file_url: str | None = None,
+        b64_file: str | None = None,
+        b64_file_mime_type: str | None = None,
+        stream: Literal[True] = True,
+        response_method: Literal[ResponseMethod.RESPONSE] = ResponseMethod.RESPONSE,
+    ) -> AsyncStream[ResponseStreamEvent]: ...
+
+    @overload
+    async def create_response(
+        self,
+        prompt: str = "",
+        conversation: Sequence[ChatCompletionMessageParam] | None = None,
+        prev_conversation: Sequence[ChatCompletionMessageParam] | None = None,
+        instructions: str | None = None,
+        file_url: str | None = None,
+        b64_file: str | None = None,
+        b64_file_mime_type: str | None = None,
+        stream: Literal[True] = True,
+        response_method: Literal[
+            ResponseMethod.CHAT_COMPLETION
+        ] = ResponseMethod.CHAT_COMPLETION,
+    ) -> AsyncStream[ChatCompletionChunk]: ...
+
+    # TODO: cascade conversation message list change from _build_chat_messages here
     async def create_response(
         self,
         prompt: str = "",
@@ -248,8 +292,9 @@ class OpenAIService:
         file_url: str | None = None,
         b64_file: str | None = None,
         b64_file_mime_type: str | None = None,
+        stream: bool = False,
         response_method: ResponseMethod = ResponseMethod.RESPONSE,
-    ) -> OpenAIResponse:
+    ) -> OpenAIResponse | OpenAIStreamResponse:
 
         if not prompt and not conversation:
             raise ValueError("Either a prompt or existing conversation is required!")
@@ -274,8 +319,10 @@ class OpenAIService:
                 response = await self.client.responses.create(
                     model=self.model,
                     input=response_input,
+                    stream=True,
+                    # stream=stream,
                 )
-                print(response.output_text)
+                # print(response.output_text)
 
             case ResponseMethod.CHAT_COMPLETION:
                 chat_messages = (
@@ -293,9 +340,9 @@ class OpenAIService:
                 response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=chat_messages,
+                    stream=stream,
                 )
-
-                print(response.choices[0].message.content)
+                # print(response.choices[0].message.content)
 
             case _:
                 raise ValueError(
