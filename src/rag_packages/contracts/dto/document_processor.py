@@ -1,8 +1,7 @@
 from typing import Any, Literal, TypeAlias
 from pydantic import Field
-from docling_core.types.doc import TableItem, PictureItem, BoundingBox
-
 from rag_packages.contracts.dto.shared_dto import BaseDTO
+# from docling_core.types.doc import TableItem, PictureItem, BoundingBox
 
 
 FileType = Literal[
@@ -18,9 +17,9 @@ class ChunkDetails(BaseDTO):
     pages: list[int] = Field(default_factory=list)
     headings: list[str] = Field(default_factory=list)
     captions: list[str] = Field(default_factory=list)
-    tables: list[TableItem] = Field(default_factory=list)
-    figures: list[PictureItem] = Field(default_factory=list)
-    bbox: list[BoundingBox] = Field(default_factory=list)
+    tables: list[dict] = Field(default_factory=list)  # TableItem
+    figures: list[dict] = Field(default_factory=list)  # PictureItem
+    bbox: list[dict] = Field(default_factory=list)  # BoundingBox
 
 
 class ProcessedChunk(BaseDTO):
