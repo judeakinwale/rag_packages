@@ -323,8 +323,7 @@ class OpenAIService:
                 response = await self.client.responses.create(
                     model=self.model,
                     input=response_input,
-                    stream=True,
-                    # stream=stream,
+                    stream=stream,
                 )
                 # print(response.output_text)
 
