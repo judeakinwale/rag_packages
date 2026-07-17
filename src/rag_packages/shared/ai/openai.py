@@ -3,6 +3,7 @@ from typing import Any, Literal, Mapping, TypeAlias, overload
 from enum import StrEnum
 import openai
 from openai import AsyncOpenAI, AsyncStream
+from rag_packages.shared.ai.system_prompt import get_system_prompt
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessageParam,
@@ -68,7 +69,8 @@ OpenAIStreamResponse: TypeAlias = (
 
 
 class OpenAIService:
-    default_system_prompt = "You are a coding assistant that talks like a pirate."
+    default_approved_websites = ["https://www.wikipedia.org/"]
+    default_system_prompt = get_system_prompt(default_approved_websites)
     default_model = "gpt-5.5"
     default_realtime_model = "gpt-realtime-2"
 
@@ -77,11 +79,13 @@ class OpenAIService:
         api_key: str,
         config: Mapping[str, Any] | None = None,  # or change this to **client_kwargs
         system_prompt: str | None = None,
+        approved_websites: list[str] | None = None,
         webhook_secret: str | None = None,
     ):
         self.api_key = api_key
         self.config = config or {}
         self.system_prompt = system_prompt or self.default_system_prompt
+        self.approved_websites = approved_websites or self.default_approved_websites
 
         self.model = self.default_model
         self.realtime_model = self.default_realtime_model

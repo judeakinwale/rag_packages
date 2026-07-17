@@ -4,6 +4,11 @@ from pydantic import Field
 from rag_packages.contracts.dto.shared_dto import BaseDTO, APIResponse, APIListResponse
 
 
+class SimpleChat(BaseDTO):
+    prompt: str
+    response: str | None = None
+
+
 class ChatMessage(BaseDTO):
     role: str
     content: str | list[dict[str, Any]]
