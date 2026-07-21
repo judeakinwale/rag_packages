@@ -6,6 +6,7 @@ from rag_packages.contracts.events.ingest import (
     ProcessingCompletedEvent,
     ProcessingFailedEvent,
 )
+from rag_packages.shared.utils.format import get_date_iso_str
 
 
 class IngestProducer:
@@ -38,18 +39,27 @@ class IngestProducer:
     async def processing_completed(
         self, event: ProcessingCompletedEvent, key: str | None = None
     ):
+
+        data = event.model_dump()
+        data["ingest_initiated_at"] = get_date_iso_str(event.ingest_initiated_at)
+
         await self.producer.publish(
             "ingest.processing.completed",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def processing_failed(
         self, event: ProcessingFailedEvent, key: str | None = None
     ):
+
+        data = event.model_dump()
+        data["ingest_initiated_at"] = get_date_iso_str(event.ingest_initiated_at)
+        data["ingest_failed_at"] = get_date_iso_str(event.ingest_failed_at)
+
         await self.producer.publish(
             "ingest.processing.failed",
-            event.model_dump(),
+            data,
             key,
         )
 
