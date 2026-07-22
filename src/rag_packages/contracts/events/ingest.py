@@ -26,6 +26,8 @@ class ProcessingCompletedEvent(BaseEvent):
 
 
 class ProcessingFailedEvent(ProcessingCompletedEvent):
+    error: str | None = None
+    detailed_error: str | None = None
     ingest_initiated_at: datetime | None = None
     ingest_failed_at: datetime
 

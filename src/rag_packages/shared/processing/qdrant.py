@@ -104,6 +104,13 @@ class QdrantService:
                 collection_name=self.collection_name,
                 vectors_config=vector_params,
             )
+            
+        collection_response = await client.get_collections()
+        collections = collection_response.collections
+
+        exists = any(c.name == self.collection_name for c in collections)
+        if exists:
+            return True
 
         return await client.create_collection(
             collection_name=self.collection_name,
