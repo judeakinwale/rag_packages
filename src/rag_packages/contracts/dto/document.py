@@ -15,6 +15,7 @@ class CreateDocumentRequest(BaseDTO):
     file_metadata: dict[str, Any] | None = None
     last_modified: datetime
     file_type: str
+    file_mime_type: str | None = None
     file_size: int | None = None
 
     ingest_initiated_at: datetime | None = None
@@ -32,6 +33,7 @@ class UpdateDocumentRequest(BaseDTO):
     file_metadata: dict[str, Any] | None = None
     last_modified: datetime | None = None
     file_type: str | None = None
+    file_mime_type: str | None = None
     file_size: int | None = None
 
     ingest_initiated_at: datetime | None = None
@@ -51,6 +53,7 @@ class DocumentResponse(BaseDTO):
     file_metadata: dict[str, Any] | None = None
     last_modified: datetime
     file_type: str
+    file_mime_type: str | None = None
     file_size: int | None = None
 
     # not stored in db, may be added in response for single document retrieval

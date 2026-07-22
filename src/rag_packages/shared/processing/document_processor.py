@@ -3,6 +3,7 @@ import base64
 import binascii
 import logging
 from pathlib import Path
+from typing import Any
 from tempfile import NamedTemporaryFile
 import tiktoken
 from docling.chunking import HybridChunker
@@ -133,6 +134,20 @@ class DocumentProcessor:
         except (binascii.Error, ValueError) as e:
             raise ValueError(f"Invalid base64 input: {e}") from e
 
+    def _normalize_file_type(self, file_type: str) -> FileType:
+        if not file_type:
+            return ""
+
+        normalized_type = file_type.lower().strip()
+
+        if "/" in normalized_type:
+            normalized_type = normalized_type.split("/")[-1]  # get the subtype
+
+        if normalized_type.startswith("."):
+            normalized_type = normalized_type[1:]  # remove leading dot
+
+        return normalized_type.strip()
+
     def _create_temporary_file(self, file: bytes, file_type: FileType) -> Path:
         if file_type not in FILE_TYPES:
             raise ValueError(f"Unsupported file type: {file_type}")
@@ -192,21 +207,26 @@ class DocumentProcessor:
         headings = chunk.meta.headings
         captions = chunk.meta.captions
 
-        tables: list[TableItem] = []
-        figures: list[PictureItem] = []
+        # tables: list[TableItem] = []
+        # figures: list[PictureItem] = []
+        # pages_set: set[int] = set()
+        # bbox: list[BoundingBox] = []
+        
+        tables: list[dict[str, Any]] = []
+        figures: list[dict[str, Any]] = []
         pages_set: set[int] = set()
-        bbox: list[BoundingBox] = []
+        bbox: list[dict[str, Any]] = []
 
         for item in doc_items:
             if isinstance(item, TableItem):
-                tables.append(item)
+                tables.append(item.model_dump(exclude_unset=True, exclude_none=True))
 
             elif isinstance(item, PictureItem):
-                figures.append(item)
+                figures.append(item.model_dump(exclude_unset=True, exclude_none=True))
 
             for prov_item in item.prov:
                 prov_page_no = prov_item.page_no
-                prov_bbox = prov_item.bbox
+                prov_bbox = prov_item.bbox.model_dump(exclude_unset=True, exclude_none=True)
                 pages_set.add(prov_page_no)
                 bbox.append(prov_bbox)
 
@@ -229,12 +249,14 @@ class DocumentProcessor:
     async def extract_text(
         self,
         file_b64: str,
-        file_type: FileType,
+        file_type: str,
+        # file_type: FileType,
         # file_name: str | None = None,
     ) -> tuple[str, DoclingDocument]:
         file_path: Path | None = None
         try:
             file_binary = self._get_file_binary(file_b64)
+            file_type = self._normalize_file_type(file_type)
             file_path = self._create_temporary_file(file_binary, file_type)
 
             converter = await self._get_converter()

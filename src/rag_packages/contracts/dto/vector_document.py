@@ -10,6 +10,7 @@ class VectorDocumentFileMetadata(BaseDTO):
     file_url: str
     library_name: str | None = None
     file_type: str
+    file_mime_type: str | None = None
     file_size: int | None = None
     last_modified: datetime
 

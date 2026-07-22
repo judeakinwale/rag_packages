@@ -33,6 +33,7 @@ class AddPromptRequest(BaseDTO):
     file_url: str | None = None
     b64_file: str | None = None
     file_type: str | None = None
+    file_mime_type: str | None = None
     email: str | None = None
     session_id: str | None = None
     site_url: str | None = None
