@@ -3,16 +3,28 @@ from typing import Any
 from pydantic import Field
 from rag_packages.contracts.dto.shared_dto import BaseDTO, APIResponse, APIListResponse
 
+from rag_packages.contracts.dto.document_processor import ProcessedChunk
+from rag_packages.contracts.dto.document import DocumentResponse
+from rag_packages.contracts.dto.vector_document import VectorDocumentResponse
+
 
 class SimpleChat(BaseDTO):
     prompt: str
     response: str | None = None
 
 
+# Primarily used for adding references to an assistant response on the chat / prompt endpoints
+class ChatMessageReferences(BaseDTO):
+    document_chunks: list[ProcessedChunk] = Field(default_factory=list)
+    vector_documents: list[VectorDocumentResponse] = Field(default_factory=list)
+    documents: list[DocumentResponse] = Field(default_factory=list)
+
+
 class ChatMessage(BaseDTO):
     role: str
     content: str | list[dict[str, Any]]
     timestamp: datetime
+    references: ChatMessageReferences | None = None
 
 
 # For working with a prompt sent by the user
