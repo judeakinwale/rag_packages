@@ -41,19 +41,19 @@ class UpdateVectorDocumentRequest(BaseDTO):
 
 
 class VectorDocumentResponse(BaseDTO):
-    id: int | str
+    id: int | str | None = None
     doc_id: int
     chunk_id: int
     file_name: str
     text: str
     details: ChunkDetails
     metadata: dict[str, Any] | None = None
-    file_metadata: VectorDocumentFileMetadata
+    file_metadata: VectorDocumentFileMetadata | None = None
 
-    initiated_at: datetime
+    initiated_at: datetime | None = None
     completed_at: datetime | None = None
-    is_active: bool
-    is_deleted: bool
+    is_active: bool | None = None
+    is_deleted: bool | None = None
 
 
 class DocumentAPIResponse(APIResponse):
