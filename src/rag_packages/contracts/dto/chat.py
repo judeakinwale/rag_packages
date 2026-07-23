@@ -27,6 +27,11 @@ class ChatMessage(BaseDTO):
     references: ChatMessageReferences | None = None
 
 
+class OpenAIChatMessage(BaseDTO):
+    role: str
+    content: str | list[dict[str, Any]]
+
+
 # For working with a prompt sent by the user
 class AddPromptRequest(BaseDTO):
     prompt: str
