@@ -297,6 +297,10 @@ class DocumentProcessor:
     ) -> list[ProcessedChunk]:
         chunker = self._get_chunker()
         chunks = chunker.chunk(document)
+        
+        # TODO: look into merging smaller chunks into larger chunks up to a minimum size of 300 tokens and max of 1024 tokens, 
+        # while preserving the chunk boundaries and metadata. 
+        # This will help reduce the number of chunks and improve the quality of the embeddings.
 
         processed_chunks = [
             self._get_processed_doc_chunk_with_metadata(chunk, i)

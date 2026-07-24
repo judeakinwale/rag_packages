@@ -306,6 +306,11 @@ class OpenAIService:
         if file_url and b64_file:
             raise ValueError("Provide either file_url or b64_file, not both.")
 
+        print(
+            "in OpenAIService package: \n",
+            {"conversation": conversation, "prev_conversation": prev_conversation},
+        )
+
         match response_method:
             case ResponseMethod.RESPONSE:
                 response_input = (

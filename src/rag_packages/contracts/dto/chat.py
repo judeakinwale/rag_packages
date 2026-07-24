@@ -23,7 +23,7 @@ class ChatMessageReferences(BaseDTO):
 class ChatMessage(BaseDTO):
     role: str
     content: str | list[dict[str, Any]]
-    timestamp: datetime | int  # datetime or timestamp
+    timestamp: datetime | int  # datetime or timestamp in ms (13 digit int)
     references: ChatMessageReferences | None = None
 
 
