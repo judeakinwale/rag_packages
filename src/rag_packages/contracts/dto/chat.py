@@ -4,8 +4,8 @@ from pydantic import Field
 from rag_packages.contracts.dto.shared_dto import BaseDTO, APIResponse, APIListResponse
 
 from rag_packages.contracts.dto.document_processor import ProcessedChunk
-from rag_packages.contracts.dto.document import DocumentResponse
-from rag_packages.contracts.dto.vector_document import VectorDocumentResponse
+from rag_packages.contracts.dto.document import DocumentResponse, DocumentResponseJSON
+from rag_packages.contracts.dto.vector_document import VectorDocumentResponse, VectorDocumentResponseJSON
 
 
 class SimpleChat(BaseDTO):
@@ -16,8 +16,8 @@ class SimpleChat(BaseDTO):
 # Primarily used for adding references to an assistant response on the chat / prompt endpoints
 class ChatMessageReferences(BaseDTO):
     document_chunks: list[ProcessedChunk] = Field(default_factory=list)
-    vector_documents: list[VectorDocumentResponse] = Field(default_factory=list)
-    documents: list[DocumentResponse] = Field(default_factory=list)
+    vector_documents: list[VectorDocumentResponseJSON] = Field(default_factory=list)
+    documents: list[DocumentResponseJSON] = Field(default_factory=list)
 
 
 class ChatMessage(BaseDTO):

@@ -72,6 +72,15 @@ class DocumentResponse(BaseDTO):
     is_deleted: bool
 
 
+# ? timestamp in ms (13 digit int)
+class DocumentResponseJSON(DocumentResponse):
+    last_modified: datetime | int | None = None
+    ingest_initiated_at: datetime | int | None = None
+    prev_batch_ingest_init: datetime | int | None = None
+    created_at: datetime | int | None = None
+    updated_at: datetime | int | None = None
+
+
 class DocumentAPIResponse(APIResponse):
     data: DocumentResponse | None = None
 
