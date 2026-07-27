@@ -84,7 +84,7 @@ class DocumentProcessor:
 
         # tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
         tokenizer = OpenAITokenizer(
-            tokenizer=tiktoken.encoding_for_model("gpt-4o"), max_tokens=1024
+            tokenizer=tiktoken.encoding_for_model("gpt-5"), max_tokens=1024
         )
         return tokenizer
 
@@ -201,6 +201,45 @@ class DocumentProcessor:
             metadata=metadata,
         )
 
+    def _get_token_count(self, text: str) -> tuple[int, list[int]]:
+        encoder = tiktoken.encoding_for_model("gpt-5")
+        tokens = encoder.encode(text)
+        return len(tokens), tokens
+
+    # consolidate the chunks of a document being processed, especially useful for PDFs with many small chunks
+    def _consolidate_hybrid_chunker_chunks(
+        self,
+        chunks: list[ProcessedChunk],
+        min_tokens: int = 300,
+        max_tokens: int = 1024,
+    ) -> list[ProcessedChunk]:
+
+        consolidated_chunks: list[ProcessedChunk] = []
+        for chunk in chunks:
+            token_count, _ = self._get_token_count(chunk.text)
+            if token_count < min_tokens and consolidated_chunks:
+                # Merge with the last chunk if it's below the minimum token count
+                last_chunk = consolidated_chunks[-1]
+
+                merged_text = last_chunk.text + "\n" + chunk.text
+                merged_token_count, _ = self._get_token_count(merged_text)
+                if merged_token_count <= max_tokens:
+                    # Update the last chunk with the merged text and details
+                    last_chunk.text = merged_text
+                    last_chunk.details.pages.extend(chunk.details.pages)
+                    last_chunk.details.headings.extend(chunk.details.headings)
+                    last_chunk.details.captions.extend(chunk.details.captions)
+                    last_chunk.details.tables.extend(chunk.details.tables)
+                    last_chunk.details.figures.extend(chunk.details.figures)
+                    last_chunk.details.bbox.extend(chunk.details.bbox)
+                else:
+                    # If merging exceeds max_tokens, add as a new chunk
+                    consolidated_chunks.append(chunk)
+            else:
+                consolidated_chunks.append(chunk)
+
+        return consolidated_chunks
+
     @staticmethod
     def get_doc_chunk_details(chunk: DocChunk) -> ChunkDetails:
         doc_items = chunk.meta.doc_items
@@ -211,7 +250,7 @@ class DocumentProcessor:
         # figures: list[PictureItem] = []
         # pages_set: set[int] = set()
         # bbox: list[BoundingBox] = []
-        
+
         tables: list[dict[str, Any]] = []
         figures: list[dict[str, Any]] = []
         pages_set: set[int] = set()
@@ -226,7 +265,9 @@ class DocumentProcessor:
 
             for prov_item in item.prov:
                 prov_page_no = prov_item.page_no
-                prov_bbox = prov_item.bbox.model_dump(exclude_unset=True, exclude_none=True)
+                prov_bbox = prov_item.bbox.model_dump(
+                    exclude_unset=True, exclude_none=True
+                )
                 pages_set.add(prov_page_no)
                 bbox.append(prov_bbox)
 
@@ -297,16 +338,26 @@ class DocumentProcessor:
     ) -> list[ProcessedChunk]:
         chunker = self._get_chunker()
         chunks = chunker.chunk(document)
-        
-        # TODO: look into merging smaller chunks into larger chunks up to a minimum size of 300 tokens and max of 1024 tokens, 
-        # while preserving the chunk boundaries and metadata. 
+
+        # TODO: look into merging smaller chunks into larger chunks up to a minimum size of 300 tokens and max of 1024 tokens,
+        # while preserving the chunk boundaries and metadata.
         # This will help reduce the number of chunks and improve the quality of the embeddings.
 
         processed_chunks = [
             self._get_processed_doc_chunk_with_metadata(chunk, i)
             for i, chunk in enumerate(chunks)
         ]
-        return processed_chunks
+
+        consolidated_chunks = self._consolidate_hybrid_chunker_chunks(processed_chunks)
+
+        print(
+            {
+                "processed_chunks_len": len(processed_chunks),
+                "consolidated_chunks_len": len(consolidated_chunks),
+            }
+        )
+
+        return consolidated_chunks
 
     async def process(
         self,
