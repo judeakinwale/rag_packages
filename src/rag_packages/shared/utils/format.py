@@ -14,7 +14,6 @@ def get_date_iso_str(date: datetime | str | None = None) -> str | None:
         return None
     else:
         raise ValueError(f"Invalid type for date: {type(date)}")
-    
 
 
 def normalize_timestamp_to_seconds(ts: int) -> float:
@@ -62,6 +61,32 @@ def get_datetime_from_timestamp_ms(timestamp: int | None) -> datetime | None:
 
     raise TypeError(f"Invalid timestamp type: {type(timestamp)}. Expected int.")
 
+
+def extend_list_unique(
+    target_list: list[Any] | None = None,
+    extend_list: list[Any] | None = None,
+    unique: bool = True,
+) -> list[Any] | None:
+    target_list = target_list.copy() if target_list is not None else None
+    if target_list is None:
+        list_copy = extend_list.copy() if extend_list is not None else None
+        return list_copy
+
+    if not extend_list:
+        return target_list
+
+    if unique:
+        target_set = set(target_list)
+        for item in extend_list:
+            if item not in target_set:
+                target_set.add(item)
+                target_list.append(item)
+
+        return target_list
+
+    target_list.extend(extend_list)
+
+    return target_list
 
 
 def dicts_to_markdown(

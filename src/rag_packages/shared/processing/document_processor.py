@@ -31,6 +31,10 @@ from rag_packages.contracts.dto.document_processor import (
     ProcessedDocument,
 )
 
+from packages.rag_packages.src.rag_packages.shared.utils.format import (
+    extend_list_unique,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -226,12 +230,51 @@ class DocumentProcessor:
                 if merged_token_count <= max_tokens:
                     # Update the last chunk with the merged text and details
                     last_chunk.text = merged_text
-                    last_chunk.details.pages.extend(chunk.details.pages)
-                    last_chunk.details.headings.extend(chunk.details.headings)
-                    last_chunk.details.captions.extend(chunk.details.captions)
-                    last_chunk.details.tables.extend(chunk.details.tables)
-                    last_chunk.details.figures.extend(chunk.details.figures)
-                    last_chunk.details.bbox.extend(chunk.details.bbox)
+
+                    if last_chunk.details:
+                        last_chunk.details.pages = extend_list_unique(
+                            last_chunk.details.pages, chunk.details.pages
+                        )
+                        last_chunk.details.headings = extend_list_unique(
+                            last_chunk.details.headings, chunk.details.headings
+                        )
+                        last_chunk.details.captions = extend_list_unique(
+                            last_chunk.details.captions, chunk.details.captions
+                        )
+                        last_chunk.details.tables = extend_list_unique(
+                            last_chunk.details.tables, chunk.details.tables
+                        )
+                        last_chunk.details.figures = extend_list_unique(
+                            last_chunk.details.figures, chunk.details.figures
+                        )
+                        last_chunk.details.bbox = extend_list_unique(
+                            last_chunk.details.bbox, chunk.details.bbox
+                        )
+
+                        # if last_chunk.details.pages:
+                        #     last_chunk.details.pages.extend(chunk.details.pages)
+                        # else:
+                        #     last_chunk.details.pages = chunk.details.pages
+                        # if last_chunk.details.headings:
+                        #     last_chunk.details.headings.extend(chunk.details.headings)
+                        # else:
+                        #     last_chunk.details.headings = chunk.details.headings
+                        # if last_chunk.details.captions:
+                        #     last_chunk.details.captions.extend(chunk.details.captions)
+                        # else:
+                        #     last_chunk.details.captions = chunk.details.captions
+                        # if last_chunk.details.tables:
+                        #     last_chunk.details.tables.extend(chunk.details.tables)
+                        # else:
+                        #     last_chunk.details.tables = chunk.details.tables
+                        # if last_chunk.details.figures:
+                        #     last_chunk.details.figures.extend(chunk.details.figures)
+                        # else:
+                        #     last_chunk.details.figures = chunk.details.figures
+                        # if last_chunk.details.bbox:
+                        #     last_chunk.details.bbox.extend(chunk.details.bbox)
+                        # else:
+                        #     last_chunk.details.bbox = chunk.details.bbox
                 else:
                     # If merging exceeds max_tokens, add as a new chunk
                     consolidated_chunks.append(chunk)
