@@ -76,16 +76,20 @@ def extend_list_unique(
         return target_list
 
     if unique:
-        target_set = set(target_list)
-        for item in extend_list:
-            if item not in target_set:
-                target_set.add(item)
-                target_list.append(item)
+        try:
+            target_set = set(target_list)
+            for item in extend_list:
+                if item not in target_set:
+                    target_set.add(item)
+                    target_list.append(item)
 
-        return target_list
+            return target_list
+
+        except Exception:
+            target_list.extend(extend_list)
+            return target_list
 
     target_list.extend(extend_list)
-
     return target_list
 
 
