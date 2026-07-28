@@ -31,9 +31,7 @@ from rag_packages.contracts.dto.document_processor import (
     ProcessedDocument,
 )
 
-from packages.rag_packages.src.rag_packages.shared.utils.format import (
-    extend_list_unique,
-)
+from rag_packages.shared.utils.format import extend_list_unique
 
 
 logger = logging.getLogger(__name__)
