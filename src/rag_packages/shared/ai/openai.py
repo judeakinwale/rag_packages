@@ -1,9 +1,14 @@
 from collections.abc import Sequence
 from typing import Any, Literal, Mapping, TypeAlias, overload
 from enum import StrEnum
+import base64
+import uuid
+import asyncio
+from io import BytesIO
 import openai
 from openai import AsyncOpenAI, AsyncStream
 from rag_packages.shared.ai.system_prompt import get_system_prompt
+from openai.types import FilePurpose, FileObject
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessageParam,
@@ -100,11 +105,55 @@ class OpenAIService:
         )
         # self.sync_client = OpenAI(api_key=self.api_key, **self.config)
 
-    def _build_response_content(
+    def _upload_file(
+        self,
+        file_path: str | None = None,
+        purpose: FilePurpose = "user_data",
+    ) -> FileObject:
+        if file_path is not None:
+            with open(file_path, "rb") as f:
+                return self.client.files.create(file=f, purpose=purpose)
+
+    async def _upload_file_from_b64(
+        self,
+        b64_file_str: str | None = None,
+        purpose: FilePurpose = "user_data",
+    ) -> FileObject:
+        pdf_bytes = base64.b64decode(b64_file_str)
+        buffer = BytesIO(pdf_bytes)
+
+        # important: gives the SDK a filename (unique)
+        buffer.name = f"document_{uuid.uuid4()}.pdf"
+
+        file = await self.client.files.create(file=buffer, purpose=purpose)
+        return file
+
+    async def _create_file(
+        self,
+        file_path: str | None = None,
+        b64_file_str: str | None = None,
+        purpose: FilePurpose = "user_data",
+    ) -> FileObject:
+        if file_path is not None:
+            return await asyncio.to_thread(
+                self._upload_file, self.client, file_path, purpose
+            )
+
+        if b64_file_str is not None:
+            return await self._upload_file_from_b64(
+                b64_file_str=b64_file_str, purpose=purpose
+            )
+
+        raise ValueError(
+            "Either file_path or b64_file_str must be provided to create a file."
+        )
+
+    async def _build_response_content(
         self,
         prompt: str,
-        file_url: str | None,
-        b64_file: str | None,
+        file_url: str | None = None,
+        file_id: str | None = None,
+        b64_file: str | None = None,
         b64_file_mime_type: str | None = None,
     ) -> list[ResponseContentPart]:
         content: list[ResponseContentPart] = [{"type": "input_text", "text": prompt}]
@@ -118,23 +167,30 @@ class OpenAIService:
                 }
             )
 
+        # if b64_file:
+        #     mime_type = b64_file_mime_type or "image/png"
+        #     content.append(
+        #         {
+        #             "type": "input_image",
+        #             "image_url": f"data:{mime_type};base64,{b64_file}",
+        #             "detail": "auto",
+        #         }
+        #     )
+
+        if file_id:
+            content.append({"type": "input_file", "file_id": file_id})
+
         if b64_file:
-            mime_type = b64_file_mime_type or "image/png"
-            content.append(
-                {
-                    "type": "input_image",
-                    "image_url": f"data:{mime_type};base64,{b64_file}",
-                    "detail": "auto",
-                }
-            )
+            file = await self._create_file(b64_file_str=b64_file)
+            content.append({"type": "input_file", "file_id": file.id})
 
         return content
 
     def _build_chat_content(
         self,
         prompt: str,
-        file_url: str | None,
-        b64_file: str | None,
+        file_url: str | None = None,
+        b64_file: str | None = None,
         b64_file_mime_type: str | None = None,
     ) -> str | list[ChatContentPart]:
         if not file_url and not b64_file:
@@ -142,15 +198,25 @@ class OpenAIService:
 
         content: list[ChatContentPart] = [{"type": "text", "text": prompt}]
 
-        mime_type = b64_file_mime_type or "image/png"
+        if file_url:
+            content.append(
+                {
+                    "type": "input_image",
+                    "image_url": file_url,
+                    "detail": "auto",
+                }
+            )
 
-        image_url = file_url or f"data:{mime_type};base64,{b64_file}"
-        content.append(
-            {
-                "type": "image_url",
-                "image_url": {"url": image_url, "detail": "auto"},
-            }
-        )
+        # mime_type = b64_file_mime_type or "image/png"
+
+        # image_url = file_url or f"data:{mime_type};base64,{b64_file}"
+        # content.append(
+        #     {
+        #         "type": "image_url",
+        #         "image_url": {"url": image_url, "detail": "auto"},
+        #     }
+        # )
+
         return content
 
     def _filter_prev_conversation(
@@ -169,7 +235,7 @@ class OpenAIService:
         ]
 
     # TODO: update this to properly handle conversation messages as lists without a prompt provided separately
-    def _build_response_messages(
+    async def _build_response_messages(
         self,
         prompt: str,
         prev_conversation: ResponseInputParam | None,
@@ -190,7 +256,7 @@ class OpenAIService:
         messages.append(
             {
                 "role": ActorRole.USER,
-                "content": self._build_response_content(
+                "content": await self._build_response_content(
                     prompt, file_url, b64_file, b64_file_mime_type
                 ),
             }
@@ -316,7 +382,7 @@ class OpenAIService:
                 response_input = (
                     list(conversation)
                     if conversation is not None
-                    else self._build_response_messages(
+                    else await self._build_response_messages(
                         prompt=prompt,
                         prev_conversation=prev_conversation,
                         instructions=instructions,
