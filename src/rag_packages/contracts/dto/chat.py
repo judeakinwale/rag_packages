@@ -53,6 +53,7 @@ class CreateChatRequest(BaseDTO):
     messages: list[ChatMessage] = Field(default_factory=list)
     # ! do not include the mime type section in the b64 string
     b64_file: str | None = None
+    b64_file_type: str | None = None
     session_id: str | None = None
     site_url: str | None = None
 
@@ -63,6 +64,7 @@ class UpdateChatRequest(BaseDTO):
     messages: list[ChatMessage] = Field(default_factory=list)
     # ! do not include the mime type section in the b64 string
     b64_file: str | None = None
+    b64_file_type: str | None = None
     # new messages to be appended to the existing messages
     new_messages: list[ChatMessage] = Field(default_factory=list)
     session_id: str | None = None

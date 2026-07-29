@@ -117,13 +117,15 @@ class OpenAIService:
     async def _upload_file_from_b64(
         self,
         b64_file_str: str | None = None,
+        b64_file_type: str | None = None,
         purpose: FilePurpose = "user_data",
     ) -> FileObject:
         pdf_bytes = base64.b64decode(b64_file_str)
         buffer = BytesIO(pdf_bytes)
 
         # important: gives the SDK a filename (unique)
-        buffer.name = f"document_{uuid.uuid4()}.pdf"
+        file_type = f".{b64_file_type}" if b64_file_type else ""
+        buffer.name = f"document_{uuid.uuid4()}{file_type}"
 
         file = await self.client.files.create(file=buffer, purpose=purpose)
         return file
@@ -132,6 +134,7 @@ class OpenAIService:
         self,
         file_path: str | None = None,
         b64_file_str: str | None = None,
+        b64_file_type: str | None = None,
         purpose: FilePurpose = "user_data",
     ) -> FileObject:
         if file_path is not None:
@@ -141,7 +144,7 @@ class OpenAIService:
 
         if b64_file_str is not None:
             return await self._upload_file_from_b64(
-                b64_file_str=b64_file_str, purpose=purpose
+                b64_file_str=b64_file_str, b64_file_type=b64_file_type, purpose=purpose
             )
 
         raise ValueError(
@@ -158,14 +161,15 @@ class OpenAIService:
     ) -> list[ResponseContentPart]:
         content: list[ResponseContentPart] = [{"type": "input_text", "text": prompt}]
 
-        if file_url:
-            content.append(
-                {
-                    "type": "input_image",
-                    "image_url": file_url,
-                    "detail": "auto",
-                }
-            )
+        # ? Consider re-enabling this
+        # if file_url:
+        #     content.append(
+        #         {
+        #             "type": "input_image",
+        #             "image_url": file_url,
+        #             "detail": "auto",
+        #         }
+        #     )
 
         # if b64_file:
         #     mime_type = b64_file_mime_type or "image/png"
