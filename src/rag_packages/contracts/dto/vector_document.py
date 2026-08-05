@@ -64,6 +64,10 @@ class VectorDocumentFileMetadataJSON(VectorDocumentFileMetadata):
 class VectorDocumentResponseJSON(VectorDocumentResponse):
     file_metadata: VectorDocumentFileMetadataJSON | None = None
 
+    # only for use to add details to the response dict for assistant usage
+    details_dict: dict[str, Any] | None = None
+    details_markdown: str | None = None
+
     initiated_at: datetime | int | None = None  # timestamp in ms (13 digit int)
     completed_at: datetime | int | None = None  # timestamp in ms (13 digit int)
 

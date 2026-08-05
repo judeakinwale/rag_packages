@@ -97,10 +97,11 @@ def dicts_to_markdown(
     items: list[dict[str, Any]],
     fields: list[str],
     section_title: str,
-    subtitle_key: str,
+    subtitle_key: str | None = None,
     *,
     field_labels: dict[str, str] | None = None,
     skip_empty: bool = True,
+    base_header_prefix: str = "###",  # control the base header level for the section
 ) -> str:
     """
     Convert a list of dictionaries into a markdown section.
@@ -122,15 +123,17 @@ def dicts_to_markdown(
     """
     field_labels = field_labels or {}
 
-    lines = [f"### {section_title}", ""]
+    lines = [f"{base_header_prefix} {section_title}", ""]
 
     if not items:
         lines.append("_No items available._")
         return "\n".join(lines)
 
     for item in items:
-        subtitle = item.get(subtitle_key, "Untitled")
-        lines.append(f"#### {subtitle}")
+        if subtitle_key is not None:
+            subtitle = item.get(subtitle_key, "Untitled")
+            lines.append(f"{base_header_prefix}# {subtitle}")
+
         lines.append("")
 
         for field in fields:
@@ -142,12 +145,13 @@ def dicts_to_markdown(
             label = field_labels.get(field, field.replace("_", " ").title())
 
             if isinstance(value, (dict, list)):
-                lines.append(f"**{label}:**")
+                lines.append(f"- **{label}:**")
                 lines.append("```json")
                 lines.append(json.dumps(value, indent=2, ensure_ascii=False))
                 lines.append("```")
             else:
                 lines.append(f"- **{label}:** {value}")
+                lines.append("")
 
         lines.append("")
 
