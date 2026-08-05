@@ -76,7 +76,7 @@ OpenAIStreamResponse: TypeAlias = (
 class OpenAIService:
     default_approved_websites = ["https://www.wikipedia.org/"]
     default_system_prompt = get_system_prompt(default_approved_websites)
-    default_model = "gpt-5.5"
+    default_model = "gpt-5.4"
     default_realtime_model = "gpt-realtime-2"
 
     def __init__(
