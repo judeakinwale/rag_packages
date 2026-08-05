@@ -104,7 +104,7 @@ class QdrantService:
                 collection_name=self.collection_name,
                 vectors_config=vector_params,
             )
-            
+
         collection_response = await client.get_collections()
         collections = collection_response.collections
 
@@ -330,7 +330,10 @@ class QdrantService:
 
         result = await client.delete(
             collection_name=self.collection_name,
-            filter=query_filter,
+            points_selector=models.FilterSelector(
+                filter=query_filter,
+            ),
+            # filter=query_filter,
         )
         return result
 
@@ -338,7 +341,10 @@ class QdrantService:
         client = self.get_client()
         result = await client.delete(
             collection_name=self.collection_name,
-            points=point_ids,
+            points_selector=models.PointIdsList(
+                points=point_ids,
+            ),
+            # points=point_ids,
         )
         return result
 
