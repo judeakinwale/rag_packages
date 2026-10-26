@@ -4,7 +4,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from rag_packages.shared.database.base import Base
 from rag_packages.contracts.dto.shared_dto import BaseDTO
-from rag_packages.contracts.types.shared_types import SortDirection
+from rag_packages.contracts.types.shared_types import SortDirection, BoolStr
 
 
 ModelType = TypeVar("ModelType", bound=Base)
@@ -18,6 +18,7 @@ class QueryParams(BaseDTO):
     sort_direction: SortDirection = SortDirection.ASC
     limit: int | None = None
     offset: int | None = None
+    show_references: BoolStr = BoolStr.FALSE
 
 
 async def get_model_page(
