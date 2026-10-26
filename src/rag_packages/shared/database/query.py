@@ -33,6 +33,7 @@ async def get_model_page(
     sort_direction: SortDirection = SortDirection.ASC,
     limit: int | None = None,
     offset: int | None = None,
+    show_references: BoolStr = BoolStr.FALSE,
 ) -> tuple[list[ModelType], int]:
     model_columns = model.__table__.columns
     stmt = select(model)
