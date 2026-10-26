@@ -4,7 +4,10 @@ from enum import StrEnum
 class SortDirection(StrEnum):
     ASC = "asc"
     DESC = "desc"
-
+    
+class BoolStr(StrEnum):
+    TRUE = "true"
+    FALSE = "false"
 
 class DocSource(StrEnum):
     LOCAL = "local"
