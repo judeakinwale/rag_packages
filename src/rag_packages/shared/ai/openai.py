@@ -76,12 +76,14 @@ OpenAIStreamResponse: TypeAlias = (
 class OpenAIService:
     default_approved_websites = ["https://www.wikipedia.org/"]
     default_system_prompt = get_system_prompt(default_approved_websites)
-    default_model = "gpt-5.4"
+    default_model = "gpt-5.4-mini"
     default_realtime_model = "gpt-realtime-2"
 
     def __init__(
         self,
         api_key: str,
+        model: str | None = None,
+        realtime_model: str | None = None,
         config: Mapping[str, Any] | None = None,  # or change this to **client_kwargs
         system_prompt: str | None = None,
         approved_websites: list[str] | None = None,
@@ -92,8 +94,8 @@ class OpenAIService:
         self.system_prompt = system_prompt or self.default_system_prompt
         self.approved_websites = approved_websites or self.default_approved_websites
 
-        self.model = self.default_model
-        self.realtime_model = self.default_realtime_model
+        self.model = model or self.default_model
+        self.realtime_model = realtime_model or self.default_realtime_model
 
         # default timeout is 10 minutes
         self.client = AsyncOpenAI(
