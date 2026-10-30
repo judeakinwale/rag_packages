@@ -143,7 +143,7 @@ def dicts_to_markdown(
             subtitle = item.get(subtitle_key, "Untitled")
             lines.append(f"{base_header_prefix}# {subtitle}")
 
-        lines.append("")
+        # lines.append("")
 
         for field in fields:
             # value = item.get(field, "not available")
