@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 from datetime import datetime
+from enum import StrEnum
+from typing import Any
+
+import yaml
 
 
 def get_date_iso_str(date: datetime | str | None = None) -> str | None:
@@ -93,6 +96,11 @@ def extend_list_unique(
     return target_list
 
 
+class NestedDataFormat(StrEnum):
+    YAML = "yaml"
+    JSON = "json"
+
+
 def dicts_to_markdown(
     items: list[dict[str, Any]],
     fields: list[str],
@@ -102,6 +110,7 @@ def dicts_to_markdown(
     field_labels: dict[str, str] | None = None,
     skip_empty: bool = True,
     base_header_prefix: str = "###",  # control the base header level for the section
+    nested_data_format: NestedDataFormat = NestedDataFormat.YAML,
 ) -> str:
     """
     Convert a list of dictionaries into a markdown section.
@@ -123,7 +132,7 @@ def dicts_to_markdown(
     """
     field_labels = field_labels or {}
 
-    lines = [f"{base_header_prefix} {section_title}", ""]
+    lines = [f"{base_header_prefix} {section_title}\n"]
 
     if not items:
         lines.append("_No items available._")
@@ -137,22 +146,32 @@ def dicts_to_markdown(
         lines.append("")
 
         for field in fields:
-            value = item.get(field, "not available")
+            # value = item.get(field, "not available")
+            value = item.get(field, None)
+            value = value.strip() if isinstance(value, str) else value
 
             if skip_empty and (value is None or value == ""):
                 continue
 
             label = field_labels.get(field, field.replace("_", " ").title())
+            lines.append(f"- **{label}:**\n")
 
             if isinstance(value, (dict, list)):
-                lines.append(f"- **{label}:**")
-                lines.append("```json")
-                lines.append(json.dumps(value, indent=2, ensure_ascii=False))
-                lines.append("```")
-            else:
-                lines.append(f"- **{label}:** {value}")
-                lines.append("")
+                if nested_data_format == NestedDataFormat.YAML:
+                    lines.append(f"{yaml.dump(value, indent=2)}\n")
 
-        lines.append("")
+                if nested_data_format == NestedDataFormat.JSON:
+                    # lines.append("```json")
+                    lines.append(
+                        # the separators specified removes whitespaces
+                        json.dumps(
+                            value, indent=2, ensure_ascii=False, separators=(",", ":")
+                        )
+                    )
+                    # lines.append("```")
+            else:
+                lines.append(f"{value}\n")
+
+        # lines.append("")
 
     return "\n".join(lines)
