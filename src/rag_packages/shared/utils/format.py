@@ -158,15 +158,15 @@ def dicts_to_markdown(
 
             if isinstance(value, (dict, list)):
                 if nested_data_format == NestedDataFormat.YAML:
-                    lines.append(f"{yaml.dump(value, indent=2)}\n")
+                    lines.append(f"  {yaml.dump(value, indent=2)}\n")
 
                 if nested_data_format == NestedDataFormat.JSON:
                     # lines.append("```json")
                     lines.append(
                         # the separators specified removes whitespaces
-                        json.dumps(
+                        f"  {json.dumps(
                             value, indent=2, ensure_ascii=False, separators=(",", ":")
-                        )
+                        )}\n"
                     )
                     # lines.append("```")
             else:
