@@ -173,6 +173,9 @@ def dicts_to_markdown(
                                 separators=(',', ':'),
                             )
                         }\n"
+                        # f"  {json.dumps(
+                        #     value, indent=2, ensure_ascii=False, separators=(",", ":")
+                        # )}\n"
                     )
                     # lines.append("```")
             else:

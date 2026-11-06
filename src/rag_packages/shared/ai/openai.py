@@ -1,18 +1,19 @@
-from collections.abc import Sequence
-from typing import Any, Literal, Mapping, TypeAlias, overload
-from enum import StrEnum
-import base64
-import uuid
 import asyncio
+import base64
+import logging
+import uuid
+from collections.abc import Sequence
+from enum import StrEnum
 from io import BytesIO
+from typing import Any, Literal, Mapping, TypeAlias, overload
+
 import openai
 from openai import AsyncOpenAI, AsyncStream
-from rag_packages.shared.ai.system_prompt import get_system_prompt
-from openai.types import FilePurpose, FileObject
+from openai.types import FileObject, FilePurpose
 from openai.types.chat import (
     ChatCompletion,
-    ChatCompletionMessageParam,
     ChatCompletionChunk,
+    ChatCompletionMessageParam,
 )
 from openai.types.chat.chat_completion_content_part_image_param import (
     ChatCompletionContentPartImageParam,
@@ -20,11 +21,13 @@ from openai.types.chat.chat_completion_content_part_image_param import (
 from openai.types.chat.chat_completion_content_part_text_param import (
     ChatCompletionContentPartTextParam,
 )
+from openai.types.realtime import ConversationItem, ConversationItemParam
 from openai.types.responses import Response, ResponseInputParam, ResponseStreamEvent
 from openai.types.responses.easy_input_message_param import EasyInputMessageParam
 from openai.types.responses.response_input_image_param import ResponseInputImageParam
 from openai.types.responses.response_input_text_param import ResponseInputTextParam
-from openai.types.realtime import ConversationItem, ConversationItemParam
+
+from rag_packages.shared.ai.system_prompt import get_system_prompt
 
 # from openai.auth import gcp_id_token_provider
 # from openai.auth import azure_managed_identity_token_provider
@@ -49,6 +52,9 @@ from openai.types.realtime import ConversationItem, ConversationItemParam
 # Default variable names: OPENAI_API_KEY, OPENAI_WEBHOOK_SECRET can be omitted when creating the openai client
 
 
+logger = logging.getLogger(__name__)
+
+
 class ActorRole(StrEnum):
     SYSTEM = "system"
     DEVELOPER = "developer"
@@ -61,14 +67,14 @@ class ResponseMethod(StrEnum):
     CHAT_COMPLETION = "chat_completion"
 
 
-ConversationMessage: TypeAlias = EasyInputMessageParam | ChatCompletionMessageParam
-ConversationMessages: TypeAlias = Sequence[ConversationMessage]
-ResponseContentPart: TypeAlias = ResponseInputTextParam | ResponseInputImageParam
-ChatContentPart: TypeAlias = (
+type ConversationMessage = EasyInputMessageParam | ChatCompletionMessageParam
+type ConversationMessages = Sequence[ConversationMessage]
+type ResponseContentPart = ResponseInputTextParam | ResponseInputImageParam
+type ChatContentPart = (
     ChatCompletionContentPartTextParam | ChatCompletionContentPartImageParam
 )
-OpenAIResponse: TypeAlias = Response | ChatCompletion
-OpenAIStreamResponse: TypeAlias = (
+type OpenAIResponse = Response | ChatCompletion
+type OpenAIStreamResponse = (
     AsyncStream[ResponseStreamEvent] | AsyncStream[ChatCompletionChunk]
 )
 
@@ -88,6 +94,7 @@ class OpenAIService:
         system_prompt: str | None = None,
         approved_websites: list[str] | None = None,
         webhook_secret: str | None = None,
+        show_info_logs: bool = True,
     ):
         self.api_key = api_key
         self.config = config or {}
@@ -106,6 +113,7 @@ class OpenAIService:
             **self.config,
         )
         # self.sync_client = OpenAI(api_key=self.api_key, **self.config)
+        self.show_info_logs = show_info_logs
 
     def _upload_file(
         self,
@@ -288,14 +296,11 @@ class OpenAIService:
 
         messages.extend(self._filter_prev_conversation(prev_conversation))
 
-        messages.append(
-            {
-                "role": ActorRole.USER,
-                "content": self._build_chat_content(
-                    prompt, file_url, b64_file, b64_file_mime_type
-                ),
-            }
+        content = self._build_chat_content(
+            prompt, file_url, b64_file, b64_file_mime_type
         )
+        new_message = {"role": ActorRole.USER, "content": content}
+        messages.append(new_message)
         return messages
 
     @overload
@@ -378,10 +383,9 @@ class OpenAIService:
         if file_url and b64_file:
             raise ValueError("Provide either file_url or b64_file, not both.")
 
-        print(
-            "in OpenAIService package: \n",
-            {"conversation": conversation, "prev_conversation": prev_conversation},
-        )
+        if self.show_info_logs:
+            info_msg = f"[OpenAIService - create_response] conversation: {conversation}, \n prev_conversation: {prev_conversation}\n"
+            logger.info(info_msg)
 
         match response_method:
             case ResponseMethod.RESPONSE:
@@ -402,7 +406,6 @@ class OpenAIService:
                     input=response_input,
                     stream=stream,
                 )
-                # print(response.output_text)
 
             case ResponseMethod.CHAT_COMPLETION:
                 chat_messages = (
@@ -422,12 +425,10 @@ class OpenAIService:
                     messages=chat_messages,
                     stream=stream,
                 )
-                # print(response.choices[0].message.content)
 
             case _:
-                raise ValueError(
-                    f"Invalid response method: {response_method} provided!."
-                )
+                err_msg = f"Invalid response method: {response_method} provided!."
+                raise ValueError(err_msg)
 
         return response
 
@@ -458,18 +459,22 @@ class OpenAIService:
 
             async for event in connection:
                 if event.type == "response.output_text.delta":
-                    print(event.delta, flush=True, end="")
+                    if self.show_info_logs:
+                        info_msg = (
+                            f"[OpenAIService - realtime] event.delta: {event.delta}\n"
+                        )
+                        logger.info(info_msg)
+                    yield event.delta
 
                 elif event.type == "response.output_text.done":
-                    print()
+                    pass
 
                 elif event.type == "response.done":
                     break
 
                 elif event.type == "error":
-                    print(
-                        f"error_type: {event.error.type}: [{event.error.code}] -  {event.error.event_id} {event.error.message}"
-                    )
+                    err_msg = f"[OpenAIService - realtime] error_type: {event.error.type}:-> [{event.error.code}] -  {event.error.event_id} {event.error.message}"
+                    logger.error(err_msg)
 
     async def testing(self):
         pass
