@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -32,9 +32,10 @@ def normalize_timestamp_to_milliseconds(ts: float | int) -> int:
 
 def normalize_datetime_to_timestamp_ms(dt: datetime | int | str | None) -> int | None:
     if dt is None:
-        return None
+        dt = datetime.now(tz=UTC).timestamp
+        # return None
 
-    if isinstance(dt, int):
+    if isinstance(dt, (int, float)):
         return normalize_timestamp_to_milliseconds(dt)
 
     if isinstance(dt, datetime):
@@ -164,9 +165,14 @@ def dicts_to_markdown(
                     # lines.append("```json")
                     lines.append(
                         # the separators specified removes whitespaces
-                        f"  {json.dumps(
-                            value, indent=2, ensure_ascii=False, separators=(",", ":")
-                        )}\n"
+                        f"  {
+                            json.dumps(
+                                value,
+                                indent=2,
+                                ensure_ascii=False,
+                                separators=(',', ':'),
+                            )
+                        }\n"
                     )
                     # lines.append("```")
             else:

@@ -11,7 +11,7 @@ class BaseDTO(BaseModel):
         kwargs.setdefault("exclude_none", True)
         return super().model_dump(**kwargs)
 
-    def model_dump_json(self, **kwargs: Any) -> dict[str, Any]:
+    def model_dump_json(self, **kwargs: Any) -> str:
         kwargs.setdefault("exclude_unset", True)
         kwargs.setdefault("exclude_none", True)
         return super().model_dump_json(**kwargs)

@@ -387,7 +387,7 @@ class OpenAIService:
             case ResponseMethod.RESPONSE:
                 response_input = (
                     list(conversation)
-                    if conversation is not None
+                    if conversation  # is not None
                     else await self._build_response_messages(
                         prompt=prompt,
                         prev_conversation=prev_conversation,
@@ -407,7 +407,7 @@ class OpenAIService:
             case ResponseMethod.CHAT_COMPLETION:
                 chat_messages = (
                     list(conversation)
-                    if conversation is not None
+                    if conversation  # is not None
                     else self._build_chat_messages(
                         prompt=prompt,
                         prev_conversation=prev_conversation,
