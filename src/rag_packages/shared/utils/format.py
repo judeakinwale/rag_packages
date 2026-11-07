@@ -46,7 +46,7 @@ def normalize_datetime_to_timestamp_ms(dt: datetime | int | str | None) -> int |
         return int(date.timestamp() * 1000)
 
     raise TypeError(
-        f"Invalid timestamp type: {type(dt)}. Expected int, datetime, or str."
+        f"Invalid timestamp dt: {dt}, type: {type(dt)}. Expected int, datetime, or str."
     )
 
 
