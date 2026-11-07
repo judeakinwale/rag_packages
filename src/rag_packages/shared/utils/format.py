@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 def get_date_iso_str(date: datetime | str | None = None) -> str | None:
@@ -45,9 +48,14 @@ def normalize_datetime_to_timestamp_ms(dt: datetime | int | str | None) -> int |
         date = datetime.fromisoformat(dt)
         return int(date.timestamp() * 1000)
 
-    raise TypeError(
-        f"Invalid timestamp dt: {dt}, type: {type(dt)}. Expected int, datetime, or str."
-    )
+    dt = datetime.now(tz=UTC).timestamp
+    dt_ms = normalize_timestamp_to_milliseconds(dt)
+
+    err_msg = f"[format - normalize_datetime_to_timestamp_ms] Invalid timestamp dt: {dt}, type: {type(dt)}. Expected int, datetime, or str."
+    logger.error(err_msg)
+    # raise TypeError(err_msg)
+
+    return dt_ms
 
 
 def get_datetime_from_timestamp_ms(timestamp: int | None) -> datetime | None:
