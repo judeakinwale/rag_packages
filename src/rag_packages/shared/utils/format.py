@@ -35,7 +35,7 @@ def normalize_timestamp_to_milliseconds(ts: float | int) -> int:
 
 def normalize_datetime_to_timestamp_ms(dt: datetime | int | str | None) -> int | None:
     if dt is None:
-        dt = datetime.now(tz=UTC).timestamp
+        dt = datetime.now(tz=UTC).timestamp()
         # return None
 
     if isinstance(dt, (int, float)):
@@ -48,14 +48,11 @@ def normalize_datetime_to_timestamp_ms(dt: datetime | int | str | None) -> int |
         date = datetime.fromisoformat(dt)
         return int(date.timestamp() * 1000)
 
-    dt = datetime.now(tz=UTC).timestamp
-    dt_ms = normalize_timestamp_to_milliseconds(dt)
-
     err_msg = f"[format - normalize_datetime_to_timestamp_ms] Invalid timestamp dt: {dt}, type: {type(dt)}. Expected int, datetime, or str."
     logger.error(err_msg)
     # raise TypeError(err_msg)
 
-    return dt_ms
+    return None
 
 
 def get_datetime_from_timestamp_ms(timestamp: int | None) -> datetime | None:
